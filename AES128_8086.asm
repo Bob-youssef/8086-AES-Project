@@ -55,14 +55,122 @@ ShiftRows_MACRO MACRO
     mov STATE[3], al
 ENDM
 
-MixColumns_MACRO MACRO 
+MixColumns_MACRO MACRO  ; note : i introduced a temp variable to save the results of first column, it is at the end of the .data segment
+    local Mix_Loop
     
+    push cx 
+    push si
+    
+    xor si, si
+    mov cx, 4
+    Mix_Loop: 
+        ; --- Element[0, SI] Calculation --- 
+        mul MIX_MATRIX[0], STATE[SI] 
+        mov dl, al
+        mul MIX_MATRIX[1], STATE[SI+1]
+        xor dl, al
+        mul MIX_MATRIX[2], STATE[SI+2]
+        xor dl, al 
+        mul MIX_MATRIX[3], STATE[SI+3]
+        xor dl, al 
+        
+        mov temp[0], dl 
+        
+        ; --- Element[1, SI] Calculation --- 
+        mul MIX_MATRIX[4], STATE[SI] 
+        mov dl, al
+        mul MIX_MATRIX[5], STATE[SI+1]
+        xor dl, al
+        mul MIX_MATRIX[6], STATE[SI+2]
+        xor dl, al 
+        mul MIX_MATRIX[7], STATE[SI+3]
+        xor dl, al 
+        
+        mov temp[1], dl
+        
+        ; --- Element[2, SI] Calculation --- 
+        mul MIX_MATRIX[8], STATE[SI] 
+        mov dl, al
+        mul MIX_MATRIX[9], STATE[SI+1]
+        xor dl, al
+        mul MIX_MATRIX[10], STATE[SI+2]
+        xor dl, al 
+        mul MIX_MATRIX[11], STATE[SI+3]
+        xor dl, al 
+        
+        mov temp[2], dl
+        
+        ; --- Element[3, SI] Calculation --- 
+        mul MIX_MATRIX[12], STATE[SI] 
+        mov dl, al
+        mul MIX_MATRIX[13], STATE[SI+1]
+        xor dl, al
+        mul MIX_MATRIX[14], STATE[SI+2]
+        xor dl, al 
+        mul MIX_MATRIX[15], STATE[SI+3]
+        xor dl, al 
+        
+        mov temp[3], dl
+        
+        ; --- update the si'th column with the new values ---
+        mov al, temp[0]
+        mov STATE[SI], al
+        
+        mov al, temp[1]
+        mov STATE[SI+1], al
+        
+        mov al, temp[2]
+        mov STATE[SI+2], al
+        
+        mov al, temp[3]
+        mov STATE[SI+3], al
+        
+        add si, 4 ; bring next column
+        dec cx
+        jnz Mix_Loop
+        
+        pop cx 
+        pop si          
     
 ENDM
 
 AddRoundKey_MACRO MACRO
-ENDM  
+ENDM
 
+mul2 macro 
+    local done
+    shl al,1
+    jnc done
+    xor al,1Bh
+done:
+endm
+
+mul macro num1, num2 
+    local done, cond1, cond2, cond3
+    
+    mov al, num2
+    
+    mov bl, num1
+    dec bl 
+    jz cond1 
+    
+    mov bl, num1
+    sub bl, 2
+    jz cond2
+    jmp cond3
+    
+    cond1: 
+        jmp done 
+    cond2:
+        mul2 
+        jmp done
+    cond3:
+        mov ah, num2
+        mul2
+        xor al, ah
+done:
+    endm        
+    
 
 ; =============================================================================
 ; DATA SEGMENT
@@ -98,6 +206,9 @@ MIX_MATRIX  DB  02h, 03h, 01h, 01h
             DB  01h, 02h, 03h, 01h
             DB  01h, 01h, 02h, 03h                       
             DB  03h, 01h, 01h, 02h
+
+; --- Temp Vector for MixColumns() operation --- 
+temp DB 4 DUP(0)
           
 ; =============================================================================
 ; MAIN CODE SEGMENT

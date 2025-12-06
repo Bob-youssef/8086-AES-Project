@@ -58,6 +58,7 @@ ENDM
 MixColumns_MACRO MACRO  ; note : i introduced a temp variable to save the results of first column, it is at the end of the .data segment
     local Mix_Loop
     
+    push dx
     push cx 
     push si
     
@@ -129,12 +130,29 @@ MixColumns_MACRO MACRO  ; note : i introduced a temp variable to save the result
         dec cx
         jnz Mix_Loop
         
-        pop cx 
-        pop si          
+        pop si 
+        pop cx
+        pop dx          
     
 ENDM
 
 AddRoundKey_MACRO MACRO
+    local XOR_LOOP
+    push cx
+    push si
+    
+    mov cx, 16
+    xor si, si
+XOR_LOOP:
+    mov al, STATE[si]
+    mov bl, ROUND_KEY[si]
+    xor al, bl              ; The math: STATE = STATE XOR KEY
+    mov STATE[si], al
+    inc si
+    loop XOR_LOOP
+
+    pop si
+    pop cx
 ENDM
 
 mul2 macro 
@@ -197,7 +215,6 @@ SBox DB 63H, 7CH, 77H, 7BH, 0F2H, 6BH, 6FH, 0C5H, 30H, 01H, 67H, 2BH, 0FEH, 0D7H
 
 ; --- The 128-bit State ---
 STATE DB 19h,3dh,0e3h,0beh,0a0h,0f4h,0e2h,02bh,09ah,0c6h,08dh,02ah,0e9h,0f8h,048h,08h
-
 ; --- Round Key ---
 ROUND_KEY DB 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh, 0FFh
 
@@ -215,9 +232,49 @@ temp DB 4 DUP(0)
 ; =============================================================================
 .CODE
 START:
-    ; Initialize Data Segment
+    ; 1. Initialize Data Segment
     MOV AX, @DATA 
     MOV DS, AX    
     
-        
+    ; ==========================================================
+    ; ROUND 0: Initial Key Addition
+    ; ==========================================================
+    AddRoundKey_MACRO
+
+    ; ==========================================================
+    ; ROUNDS 1 to 9: Main Transformation Loop
+    ; ==========================================================
+    MOV DX, 9               ; Use DX as loop counter (CX is used inside macros)
+    
+AES_LOOP:
+    ; 1. Substitute Bytes (S-Box)
+    SubBytes_MACRO
+    
+    ; 2. Shift Rows
+    ShiftRows_MACRO
+    
+    ; 3. Mix Columns
+    MixColumns_MACRO
+    
+    ; 4. Key Schedule & Add Round Key
+    ; Note: You need a KeyExpansion macro here to update ROUND_KEY
+    ;       For now, it uses the static key defined in .DATA
+    AddRoundKey_MACRO
+    
+    DEC DX                  ; Decrement loop counter
+    JNZ AES_LOOP            ; Jump if not zero
+
+    ; ==========================================================
+    ; ROUND 10: Final Round (No MixColumns)
+    ; ==========================================================
+    SubBytes_MACRO
+    ShiftRows_MACRO
+    
+    ; Note: Standard AES skips MixColumns in the final round
+    
+    AddRoundKey_MACRO
+    
+    MOV AH, 4Ch
+    INT 21h
+
 END START
